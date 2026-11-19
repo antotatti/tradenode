@@ -1,0 +1,57 @@
+name: TradeNode sera
+
+# Ogni sera feriale alle 22:30 UTC (dopo la chiusura di Wall Street sia con l'ora legale
+# sia con quella solare). GitHub a volte ritarda o salta le esecuzioni pianificate:
+# il programma recupera da solo i giorni arretrati (vedi README).
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      data:
+        description: "Facoltativo: una seduta precisa da rigiocare, AAAA-MM-GG (vuoto = ciclo normale)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tradenode-sera
+  cancel-in-progress: false
+
+jobs:
+  sera:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Scarica il repository
+        uses: actions/checkout@v4
+
+      - name: Ciclo serale (paper trading, nessun ordine vero)
+        env:
+          DATA_RICHIESTA: ${{ github.event.inputs.data }}
+        run: |
+          if [ -n "$DATA_RICHIESTA" ]; then
+            case "$DATA_RICHIESTA" in
+              [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+              *) echo "Data non valida: usa AAAA-MM-GG"; exit 1 ;;
+            esac
+            python3 run_day.py sera --data "$DATA_RICHIESTA"
+          else
+            python3 run_day.py sera
+          fi
+
+      - name: Salva i risultati nel repository
+        if: always()
+        run: |
+          git config user.name "tradenode-bot"
+          git config user.email "tradenode-bot@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "Nessuna novita' da salvare."
+          else
+            git commit -m "TradeNode: dati della sera $(date -u +%F)"
+            git pull --rebase
+            git push
+          fi
