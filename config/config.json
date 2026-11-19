@@ -1,0 +1,39 @@
+{
+  "versione_regole": "1.0",
+  "nota": "Valori scelti da Claude su delega dell'utente il 2026-11-19. Si cambiano solo con l'approvazione dell'utente; ogni modifica va annotata nel registro delle versioni.",
+  "regole": {
+    "budget": 5000,
+    "cash_buffer_pct": 10,
+    "max_loss_per_trade_usd": 50,
+    "max_position_pct": 75,
+    "max_order_usd": 4000,
+    "min_order_usd": 5,
+    "max_daily_loss_usd": 150,
+    "max_trades_per_day": 3,
+    "min_reward_risk": 1.0,
+    "require_stop": true,
+    "no_entries_before": "09:45",
+    "no_entries_after": "15:30",
+    "flat_by": "15:55",
+    "paper": true,
+    "allow_options": false,
+    "allow_margin": false,
+    "allow_short": false,
+    "blocked": []
+  },
+  "simulazione": {
+    "stop": "or-mid",
+    "target": "2R",
+    "costo_per_azione_usd": 0.02,
+    "max_titoli_lista": 30,
+    "scan_prezzo_minimo": 5,
+    "scan_volume_minimo": 1000000,
+    "max_giorni_recupero": 5,
+    "margine_dopo_chiusura_min": 15
+  },
+  "criteri": {
+    "operazioni_minime": 100,
+    "settimane_minime": 8,
+    "drawdown_max_pct": 10
+  }
+}
