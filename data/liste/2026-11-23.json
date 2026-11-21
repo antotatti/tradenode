@@ -1,0 +1,349 @@
+{
+  "per_data": "2026-11-23",
+  "costruita_il": "2026-11-21T03:24:50Z",
+  "dati_fino_a": "2026-11-20 close",
+  "in_ritardo": false,
+  "universo": 5927,
+  "scansionati": 1620,
+  "falliti": 0,
+  "candidati_totali": 384,
+  "filtri": {
+    "min_price": 5.0,
+    "min_volume": 1000000
+  },
+  "simboli": [
+    "NVDA",
+    "MU",
+    "GOOGL",
+    "SNDK",
+    "TSM",
+    "INTC",
+    "GOOG",
+    "PLTR",
+    "MRVL",
+    "UNH",
+    "ASML",
+    "NBIS",
+    "NFLX",
+    "GS",
+    "DELL",
+    "MSTR",
+    "INTU",
+    "CAT",
+    "BAC",
+    "PEP",
+    "MCHP",
+    "C",
+    "SHOP",
+    "HOOD",
+    "BA",
+    "MS",
+    "NOW",
+    "MELI",
+    "CRM",
+    "IREN"
+  ],
+  "hits": [
+    {
+      "symbol": "NVDA",
+      "setups": [
+        "oversold"
+      ],
+      "price": 125.53,
+      "close_date": "2026-11-20",
+      "rsi": 15.2,
+      "volume": 626274281
+    },
+    {
+      "symbol": "MU",
+      "setups": [
+        "oversold"
+      ],
+      "price": 594.51,
+      "close_date": "2026-11-20",
+      "rsi": 29.4,
+      "volume": 59087700
+    },
+    {
+      "symbol": "GOOGL",
+      "setups": [
+        "oversold"
+      ],
+      "price": 265.29,
+      "close_date": "2026-11-20",
+      "rsi": 27.7,
+      "volume": 57297123
+    },
+    {
+      "symbol": "SNDK",
+      "setups": [
+        "oversold"
+      ],
+      "price": 94.39,
+      "close_date": "2026-11-19",
+      "rsi": 29.1,
+      "volume": 127147042
+    },
+    {
+      "symbol": "TSM",
+      "setups": [
+        "oversold"
+      ],
+      "price": 318.71,
+      "close_date": "2026-11-20",
+      "rsi": 28.3,
+      "volume": 37156375
+    },
+    {
+      "symbol": "INTC",
+      "setups": [
+        "oversold"
+      ],
+      "price": 51.28,
+      "close_date": "2026-11-20",
+      "rsi": 28.1,
+      "volume": 207749593
+    },
+    {
+      "symbol": "GOOG",
+      "setups": [
+        "oversold"
+      ],
+      "price": 264.0,
+      "close_date": "2026-11-20",
+      "rsi": 26.8,
+      "volume": 37921886
+    },
+    {
+      "symbol": "PLTR",
+      "setups": [
+        "oversold"
+      ],
+      "price": 143.49,
+      "close_date": "2026-11-20",
+      "rsi": 26.2,
+      "volume": 36561024
+    },
+    {
+      "symbol": "MRVL",
+      "setups": [
+        "oversold"
+      ],
+      "price": 122.28,
+      "close_date": "2026-11-20",
+      "rsi": 27.7,
+      "volume": 40299998
+    },
+    {
+      "symbol": "UNH",
+      "setups": [
+        "oversold",
+        "oversold_bounce"
+      ],
+      "price": 339.85,
+      "close_date": "2026-11-20",
+      "rsi": 29.8,
+      "volume": 12772826
+    },
+    {
+      "symbol": "ASML",
+      "setups": [
+        "oversold"
+      ],
+      "price": 1266.22,
+      "close_date": "2026-11-20",
+      "rsi": 28.7,
+      "volume": 3290837
+    },
+    {
+      "symbol": "NBIS",
+      "setups": [
+        "oversold"
+      ],
+      "price": 81.31,
+      "close_date": "2026-11-20",
+      "rsi": 28.4,
+      "volume": 49573896
+    },
+    {
+      "symbol": "NFLX",
+      "setups": [
+        "oversold"
+      ],
+      "price": 56.73,
+      "close_date": "2026-11-20",
+      "rsi": 27.4,
+      "volume": 67967356
+    },
+    {
+      "symbol": "GS",
+      "setups": [
+        "oversold"
+      ],
+      "price": 790.69,
+      "close_date": "2026-11-20",
+      "rsi": 29.2,
+      "volume": 4715501
+    },
+    {
+      "symbol": "DELL",
+      "setups": [
+        "oversold"
+      ],
+      "price": 278.02,
+      "close_date": "2026-11-20",
+      "rsi": 28.6,
+      "volume": 12576507
+    },
+    {
+      "symbol": "MSTR",
+      "setups": [
+        "oversold"
+      ],
+      "price": 77.8,
+      "close_date": "2026-11-20",
+      "rsi": 20.4,
+      "volume": 35771089
+    },
+    {
+      "symbol": "INTU",
+      "setups": [
+        "oversold"
+      ],
+      "price": 270.44,
+      "close_date": "2026-11-20",
+      "rsi": 26.4,
+      "volume": 9829663
+    },
+    {
+      "symbol": "CAT",
+      "setups": [
+        "oversold"
+      ],
+      "price": 510.45,
+      "close_date": "2026-11-20",
+      "rsi": 23.9,
+      "volume": 5074540
+    },
+    {
+      "symbol": "BAC",
+      "setups": [
+        "oversold"
+      ],
+      "price": 47.04,
+      "close_date": "2026-11-20",
+      "rsi": 27.9,
+      "volume": 49959554
+    },
+    {
+      "symbol": "PEP",
+      "setups": [
+        "reclaim_ma20"
+      ],
+      "price": 140.54,
+      "close_date": "2026-11-20",
+      "rsi": 53.0,
+      "volume": 13742470
+    },
+    {
+      "symbol": "MCHP",
+      "setups": [
+        "oversold"
+      ],
+      "price": 55.44,
+      "close_date": "2026-11-20",
+      "rsi": 28.9,
+      "volume": 33709690
+    },
+    {
+      "symbol": "C",
+      "setups": [
+        "oversold"
+      ],
+      "price": 110.62,
+      "close_date": "2026-11-20",
+      "rsi": 27.6,
+      "volume": 16709805
+    },
+    {
+      "symbol": "SHOP",
+      "setups": [
+        "oversold"
+      ],
+      "price": 123.72,
+      "close_date": "2026-11-20",
+      "rsi": 28.2,
+      "volume": 14222886
+    },
+    {
+      "symbol": "HOOD",
+      "setups": [
+        "oversold"
+      ],
+      "price": 62.17,
+      "close_date": "2026-11-20",
+      "rsi": 22.8,
+      "volume": 28138026
+    },
+    {
+      "symbol": "BA",
+      "setups": [
+        "oversold"
+      ],
+      "price": 155.89,
+      "close_date": "2026-11-20",
+      "rsi": 24.6,
+      "volume": 11134339
+    },
+    {
+      "symbol": "MS",
+      "setups": [
+        "oversold"
+      ],
+      "price": 165.67,
+      "close_date": "2026-11-20",
+      "rsi": 29.8,
+      "volume": 10399408
+    },
+    {
+      "symbol": "NOW",
+      "setups": [
+        "oversold"
+      ],
+      "price": 87.61,
+      "close_date": "2026-11-20",
+      "rsi": 24.2,
+      "volume": 19611738
+    },
+    {
+      "symbol": "MELI",
+      "setups": [
+        "oversold"
+      ],
+      "price": 1355.0,
+      "close_date": "2026-11-20",
+      "rsi": 25.7,
+      "volume": 1253758
+    },
+    {
+      "symbol": "CRM",
+      "setups": [
+        "oversold"
+      ],
+      "price": 180.62,
+      "close_date": "2026-11-20",
+      "rsi": 21.1,
+      "volume": 8710863
+    },
+    {
+      "symbol": "IREN",
+      "setups": [
+        "oversold"
+      ],
+      "price": 11.82,
+      "close_date": "2026-11-20",
+      "rsi": 24.5,
+      "volume": 131457012
+    }
+  ]
+}
