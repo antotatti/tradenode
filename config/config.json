@@ -1,5 +1,5 @@
 {
-  "versione_regole": "1.0",
+  "versione_regole": "1.1",
   "nota": "Valori scelti da Claude su delega dell'utente il 2026-11-19. Si cambiano solo con l'approvazione dell'utente; ogni modifica va annotata nel registro delle versioni.",
   "regole": {
     "budget": 5000,
@@ -35,5 +35,9 @@
     "operazioni_minime": 100,
     "settimane_minime": 8,
     "drawdown_max_pct": 10
+  },
+  "registro_versioni": {
+    "1.0": "Valori di partenza (2026-11-19).",
+    "1.1": "2026-11-21, approvata dall'utente: a parita' di ora tra segnali si segue l'ordine della lista (piu' scambiati per primi) invece dell'alfabeto; le operazioni con lista in ritardo restano nel diario ma non contano nelle statistiche ufficiali (la seduta del 2026-11-19 era una di queste). Aggiunta la raccolta dei dati pre-apertura, solo per studio: non cambia nessuna decisione del bot."
   }
 }
