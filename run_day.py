@@ -702,6 +702,22 @@ def analisi_premarket():
           "titoli scelti oggi: la scelta e' fatta col senno di poi e puo' gonfiare i risultati. Conta solo il confronto "
           "con la riga TUTTE, e solo dove ci sono abbastanza sedute. Con tanti gruppi qualcosa sembra sempre funzionare "
           "per caso: nessun gruppo diventa una regola senza essere confermato su dati nuovi." % (len(righe), live), ""]
+    giorni = len({r["data"] for r in righe})
+    t += ["Attenzione: le sedute dello stesso giorno non sono indipendenti (se il mercato scende, scendono quasi tutti i titoli). "
+          "I giorni di calendario diversi sono solo %d: i casi davvero indipendenti sono molti meno del numero nelle tabelle, "
+          "quindi gli intervalli indicati sono troppo ottimisti." % giorni, ""]
+    per_t = collections.defaultdict(list)
+    for r in tutte:
+        per_t[r["titolo"]].append(r)
+    var = []
+    for rs_ in per_t.values():
+        rs_.sort(key=lambda r: r["data"])
+        var.append((float(rs_[-1]["p1555"]) / float(rs_[0]["chiusura_prec"]) - 1) * 100)
+    if var:
+        t += ["Periodo osservato: dal %s al %s. In questo periodo i titoli sono variati in media del %s%% (%d su %d in calo). "
+              "Un periodo cosi' marcato rende i risultati validi per quel tipo di mercato, non per tutti." % (
+                  min(r["data"] for r in righe), max(r["data"] for r in righe), ("%+.1f" % statistics.mean(var)).replace(".", ","),
+                  sum(1 for x in var if x < 0), len(var)), ""]
     if live < 150:
         t += ["Osservazioni raccolte in diretta: %d. Per una verifica pulita ne servono almeno 150." % live, ""]
     def g_gap(r):
@@ -711,19 +727,19 @@ def analisi_premarket():
           tabella_gruppi(righe, g_gap, ["Gap in giu (-1% o meno)", "Gap piatto (tra -1% e +1%)", "Gap in su (+1% o piu)"])]
     per_titolo = collections.defaultdict(list)
     for r in righe:
-        per_titolo[r["titolo"]].append(float(r["pm_volume"]))
-    med = {s: statistics.median(v) for s, v in per_titolo.items() if len(v) >= 10}
-    def g_vol(r):
+        per_titolo[r["titolo"]].append(float(r["pm_range_pct"]))
+    med = {s_: statistics.median(v) for s_, v in per_titolo.items() if len(v) >= 10}
+    nomi = ["Pre-apertura stretta (sotto 0,7 volte il suo normale)", "Pre-apertura normale",
+            "Pre-apertura ampia (sopra 1,5 volte il suo normale)"]
+    def g_amp(r):
         m = med.get(r["titolo"])
         if not m:
             return None
-        x = float(r["pm_volume"]) / m
-        return "Volume pre-apertura basso (sotto 0,7 volte il suo normale)" if x < 0.7 else (
-            "Volume pre-apertura alto (sopra 1,5 volte il suo normale)" if x > 1.5 else "Volume pre-apertura normale")
-    t += ["### Per volume prima dell'apertura (rispetto al normale dello stesso titolo)", "",
-          tabella_gruppi(righe, g_vol, ["Volume pre-apertura basso (sotto 0,7 volte il suo normale)",
-                                        "Volume pre-apertura normale",
-                                        "Volume pre-apertura alto (sopra 1,5 volte il suo normale)"])]
+        x = float(r["pm_range_pct"]) / m
+        return nomi[0] if x < 0.7 else (nomi[2] if x > 1.5 else nomi[1])
+    t += ["### Per ampiezza dei movimenti prima dell'apertura (rispetto al normale dello stesso titolo)", "",
+          "Il volume della pre-apertura non e' disponibile: Yahoo lo riporta sempre a zero. Uso l'ampiezza del movimento di prezzo.", "",
+          tabella_gruppi(righe, g_amp, nomi)]
     return "\n".join(t)
 
 
