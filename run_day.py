@@ -19,6 +19,7 @@ Comandi:
 """
 
 import argparse
+import collections
 import csv
 import datetime
 import gzip
@@ -27,6 +28,7 @@ import json
 import math
 import os
 import shutil
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -44,6 +46,9 @@ COLONNE_OPERAZIONI = [
     "tm_p_obiettivo", "tm_p_stop", "tm_p_nessuno", "tm_storia_sedute", "tm_storia_scattate",
     "tm_storia_obiettivo", "tm_storia_stop", "tm_giudizio", "lista_in_ritardo", "nota",
 ]
+COLONNE_PREMARKET = ["data", "titolo", "fonte", "chiusura_prec", "apertura", "gap_pct", "pm_barre", "pm_volume",
+                     "pm_rend_pct", "pm_range_pct", "p0950", "p1555", "rend_pct", "max_su_pct", "max_giu_pct",
+                     "dati_scarsi"]
 COLONNE_GIORNATE = ["data", "stato", "grafici", "scattati", "operazioni", "scartate", "netto_usd",
                     "R_netto", "lista_in_ritardo", "problemi"]
 
@@ -138,9 +143,10 @@ def carica_config(percorso):
 class Fonte:
     """Scarica i grafici a 5 minuti (60 giorni) da Yahoo, oppure li legge da una cartella (prove)."""
 
-    def __init__(self, E, grafici_offline=None, pausa=0.3):
+    def __init__(self, E, grafici_offline=None, prepost_offline=None, pausa=0.3):
         self.E = E
         self.offline = grafici_offline
+        self.prepost_offline = prepost_offline
         self.pausa = pausa
 
     def grafico(self, sym):
@@ -149,6 +155,14 @@ class Fonte:
             return E.read_text(E.offline_file(self.offline, sym))
         time.sleep(self.pausa)
         return E.yahoo_get(E.chart_path(sym, "60d", "5m"))
+
+    def grafico_prepost(self, sym):
+        """Stessi 60 giorni a 5 minuti, ma con le barre prima dell'apertura (solo per lo studio)."""
+        E = self.E
+        if self.prepost_offline:
+            return E.read_text(E.offline_file(self.prepost_offline, sym))
+        time.sleep(self.pausa)
+        return E.yahoo_get(E.chart_path(sym, "60d", "5m") + "&includePrePost=true")
 
 
 # ---------------------------------------------------------------- calendario
@@ -262,7 +276,9 @@ def elabora_giorno(E, cfg, d, fonte, log):
                 continue
             if doc.get("status") == "triggered":
                 scattati.append((doc["trigger"]["close_time"], s, doc))
-        scattati.sort(key=lambda x: (x[0], x[1]))
+        # a pari ora si segue l'ordine della lista (i titoli piu' scambiati per primi), non l'alfabeto (v1.1)
+        ordine = {s: i for i, s in enumerate(simboli)}
+        scattati.sort(key=lambda x: (x[0], ordine.get(x[1], 9999)))
         ris["scattati"] = len(scattati)
 
         # 2) uno alla volta, in ordine di ora: uscita, dimensione, rischio, esito simulato
@@ -426,9 +442,10 @@ def wilson(k, n, z=1.96):
 
 
 def statistiche(righe):
-    valide = [r for r in righe if r["esito"] in ("stop", "obiettivo", "chiusura")]
+    complete = [r for r in righe if r["esito"] in ("stop", "obiettivo", "chiusura")]
+    valide = [r for r in complete if r.get("lista_in_ritardo") != "si"]   # v1.1: lista in ritardo = non conta
     n = len(valide)
-    st = {"n": n, "incomplete": len(righe) - n}
+    st = {"n": n, "incomplete": len(righe) - len(complete), "escluse_ritardo": len(complete) - n}
     if n == 0:
         return st
     vinte = sum(1 for r in valide if float(r["netto_usd"]) > 0)
@@ -454,7 +471,10 @@ def statistiche(righe):
 
 def blocco_statistiche(st, cfg, titolo):
     if st["n"] == 0:
-        return "%s\nNessuna operazione valutata finora.\n" % titolo
+        extra = ""
+        if st.get("escluse_ritardo"):
+            extra = "Escluse dal conteggio ufficiale (lista in ritardo): %d operazioni.\n" % st["escluse_ritardo"]
+        return "%s\nNessuna operazione valutata finora.\n%s" % (titolo, extra)
     c = cfg["criteri"]
     dd_max = float(cfg["regole"]["budget"]) * float(c["drawdown_max_pct"]) / 100
     lo, hi = st["intervallo"]
@@ -468,6 +488,8 @@ def blocco_statistiche(st, cfg, titolo):
              "- R medio per operazione, dopo i costi: %s" % it(st["R_medio"], 2),
              "- Risultato netto simulato: %s (R totale %s)" % (usd(st["netto_totale"]), it(st["R_totale"], 1)),
              "- Drawdown massimo: %s $ (limite %s $)" % (it(st["drawdown_usd"], 2), it(dd_max, 0))]
+    if st.get("escluse_ritardo"):
+        righe.append("- Escluse dal conteggio ufficiale (lista in ritardo): %d operazioni" % st["escluse_ritardo"])
     return "\n".join(righe) + "\n"
 
 
@@ -522,6 +544,9 @@ def rapporto_giornaliero(ris, cfg, tutte):
             t.append("")
     if ris["problemi"]:
         t += ["## Problemi con i dati", ""] + ["- " + p for p in ris["problemi"]] + [""]
+    pm = ris.get("premarket")
+    if pm:
+        t += ["## Dati pre-apertura (raccolta per lo studio)", "", riga_premarket(pm), ""]
     t += [blocco_statistiche(statistiche(tutte), cfg, "## Dall'inizio"),
           "Il confronto con il semplice \"compra e tieni\" non e' ancora calcolato: serve prima di pensare a soldi veri.", ""]
     return "\n".join(t)
@@ -538,12 +563,14 @@ def rapporto_settimanale(d, cfg):
          "Rapporto da incollare nella chat del progetto per la revisione settimanale. Soldi finti, dati veri.", "",
          "## Giorno per giorno", "", "| Data | Stato | Segnali | Operazioni | Netto | R |", "| --- | --- | --- | --- | --- | --- |"]
     for g in giorni:
-        t.append("| %s | %s | %s | %s | %s | %s |" % (g["data"], g["stato"], g["scattati"], g["operazioni"],
+        stato_g = g["stato"] + (" (lista in ritardo, non conta)" if g.get("lista_in_ritardo") == "si" else "")
+        t.append("| %s | %s | %s | %s | %s | %s |" % (g["data"], stato_g, g["scattati"], g["operazioni"],
                                                      usd(g["netto_usd"]), it(g["R_netto"], 2)))
     t += ["", "## Operazioni della settimana", "", tabella_operazioni(della),
           blocco_statistiche(st_sett, cfg, "## Numeri della settimana"),
           blocco_statistiche(statistiche(tutte), cfg, "## Numeri dall'inizio")]
-    cal = [r for r in tutte if r["esito"] in ("stop", "obiettivo", "chiusura") and r["tm_p_obiettivo"] != ""]
+    cal = [r for r in tutte if r["esito"] in ("stop", "obiettivo", "chiusura") and r["tm_p_obiettivo"] != ""
+           and r.get("lista_in_ritardo") != "si"]
     t.append("## La Time Machine ci azzecca?")
     if len(cal) < 10:
         t.append("Servono almeno 10 operazioni con previsione: finora %d." % len(cal))
@@ -554,7 +581,7 @@ def rapporto_settimanale(d, cfg):
         os_ = sum(1 for r in cal if r["esito"] == "stop") / len(cal)
         t += ["- Obiettivo raggiunto: previsto in media %s%%, avvenuto nel %s%% dei casi." % (it(pt * 100, 0), it(ot * 100, 0)),
               "- Stop toccato: previsto in media %s%%, avvenuto nel %s%% dei casi." % (it(ps * 100, 0), it(os_ * 100, 0))]
-    t.append("")
+    t += ["", analisi_premarket(), ""]
     senza = [g["data"] for g in giorni if g["stato"] != "ok"]
     if senza:
         t += ["## Sedute non valutate", "", ", ".join(senza), ""]
@@ -562,6 +589,142 @@ def rapporto_settimanale(d, cfg):
     if prob:
         t += ["## Problemi con i dati", ""] + ["- %s: %s" % p for p in prob] + [""]
     return "\n".join(t), "%d-W%02d" % (anno, sett)
+
+
+# ---------------------------------------------------------------- pre-apertura (studio, non regola)
+
+def osservazioni_da_grafico(E, testo, sym):
+    """Dal grafico a 5 minuti con pre-apertura: una riga per seduta completa, con le misure di PRIMA
+    dell'apertura e quello che e' successo dopo. Qui non c'e' nessuna regola di trading: solo misure."""
+    barre = E.parse_chart(testo, sym)["bars"]
+    per_giorno = {}
+    for b in barre:
+        et = E.to_eastern(E.utc_of(b["t"]))
+        per_giorno.setdefault(et.date(), []).append((et, b))
+    t_pre, t_ap, t_ch = datetime.time(4, 0), datetime.time(9, 30), datetime.time(16, 0)
+    righe = []
+    chiusura_prec = None
+    for g in sorted(per_giorno):
+        seq = sorted(per_giorno[g], key=lambda x: x[0])
+        reg = [(et, b) for et, b in seq if t_ap <= et.time() < t_ch]
+        pre = [(et, b) for et, b in seq if t_pre <= et.time() < t_ap]
+        if not reg:
+            continue
+        prec = chiusura_prec
+        chiusura_prec = reg[-1][1]["c"]          # vale anche per il giorno dopo (mezze giornate comprese)
+        if prec is None or len(reg) < 70:        # seduta intera = 78 barre; sotto 70 la salto
+            continue
+        per_ora = {et.time(): b for et, b in reg}
+        b0945, b1550 = per_ora.get(datetime.time(9, 45)), per_ora.get(datetime.time(15, 50))
+        if not b0945 or not b1550:
+            continue
+        p0950, p1555 = b0945["c"], b1550["c"]    # prezzo alle 09:50 (primo ingresso possibile) e alle 15:55
+        dopo = [b for et, b in reg if datetime.time(9, 50) <= et.time() < datetime.time(15, 55)]
+        riga = {"data": g.isoformat(), "titolo": sym, "chiusura_prec": round(prec, 4),
+                "apertura": round(reg[0][1]["o"], 4),
+                "gap_pct": round((reg[0][1]["o"] - prec) / prec * 100, 3),
+                "pm_barre": len(pre), "pm_volume": sum(b["v"] for _, b in pre),
+                "pm_rend_pct": round((pre[-1][1]["c"] - prec) / prec * 100, 3) if pre else "",
+                "pm_range_pct": round((max(b["h"] for _, b in pre) - min(b["l"] for _, b in pre)) / prec * 100, 3)
+                if pre else "",
+                "p0950": round(p0950, 4), "p1555": round(p1555, 4),
+                "rend_pct": round((p1555 - p0950) / p0950 * 100, 3),
+                "max_su_pct": round((max(b["h"] for b in dopo) - p0950) / p0950 * 100, 3),
+                "max_giu_pct": round((min(b["l"] for b in dopo) - p0950) / p0950 * 100, 3),
+                "dati_scarsi": "si" if len(pre) < 3 else "no"}
+        righe.append(riga)
+    return righe
+
+
+def raccogli_premarket(E, simboli, simboli_live, fonte, giorno):
+    """Aggiunge le osservazioni mancanti (nessun doppione). Le righe del giorno elaborato per i titoli che erano
+    in lista sono 'live'; tutte le altre sono 'storico' (titoli scelti oggi, giorni passati: scelta col senno di poi)."""
+    p = os.path.join(DATI, "premarket", "osservazioni.csv")
+    esistenti = leggi_csv(p)
+    chiavi = {(r["data"], r["titolo"]) for r in esistenti}
+    nuove, problemi = [], []
+    for s in simboli:
+        try:
+            righe = osservazioni_da_grafico(E, fonte.grafico_prepost(s), s)
+        except Exception as e:
+            problemi.append("%s: %s" % (s, prima_riga(str(e))))
+            continue
+        for r in righe:
+            if (r["data"], s) in chiavi:
+                continue
+            r["fonte"] = "live" if (r["data"] == giorno.isoformat() and s in simboli_live) else "storico"
+            nuove.append(r)
+            chiavi.add((r["data"], s))
+    if nuove:
+        tutte = esistenti + nuove
+        tutte.sort(key=lambda r: (r["data"], r["titolo"]))
+        scrivi_csv(p, COLONNE_PREMARKET, tutte)
+    return {"nuove": len(nuove), "totale": len(esistenti) + len(nuove), "problemi": problemi,
+            "scarsi": sum(1 for r in nuove if r["dati_scarsi"] == "si")}
+
+
+def riga_premarket(pm):
+    if pm.get("errore"):
+        return "Raccolta non riuscita: %s. Il resto del ciclo non ne risente." % pm["errore"]
+    t = "Nuove osservazioni: %d (totale %d), di cui %d con pochi dati prima dell'apertura." % (
+        pm["nuove"], pm["totale"], pm["scarsi"])
+    if pm["problemi"]:
+        t += " Problemi su %d titoli, primo: %s." % (len(pm["problemi"]), pm["problemi"][0])
+    return t
+
+
+def tabella_gruppi(righe, chiave, ordine):
+    def riga(nome, rs):
+        n = len(rs)
+        if n < 30:
+            return "| %s | %d | troppo pochi dati (servono almeno 30) | | | |" % (nome, n)
+        su = sum(1 for r in rs if float(r["rend_pct"]) > 0)
+        lo, hi = wilson(su, n)
+        mm = lambda k: sum(float(r[k]) for r in rs) / n
+        return "| %s | %d | %s%% (%s-%s%%) | %s%% | %s%% | %s%% |" % (
+            nome, n, it(su / n * 100, 0), it(lo * 100, 0), it(hi * 100, 0), it(mm("rend_pct"), 2),
+            it(mm("max_su_pct"), 2), it(mm("max_giu_pct"), 2))
+    out = ["| Gruppo | Sedute | In rialzo dalle 09:50 alle 15:55 | Rendimento medio | Massimo medio in su | Massimo medio in giu |",
+           "| --- | --- | --- | --- | --- | --- |", riga("TUTTE (riferimento)", righe)]
+    for nome in ordine:
+        out.append(riga(nome, [r for r in righe if chiave(r) == nome]))
+    return "\n".join(out) + "\n"
+
+
+def analisi_premarket():
+    tutte = leggi_csv(os.path.join(DATI, "premarket", "osservazioni.csv"))
+    righe = [r for r in tutte if r["dati_scarsi"] == "no" and r["pm_rend_pct"] != ""]
+    t = ["## Cosa insegna la pre-apertura (studio, non ancora una regola)", ""]
+    if not righe:
+        return "\n".join(t + ["Ancora nessuna osservazione utilizzabile.", ""])
+    live = sum(1 for r in righe if r["fonte"] == "live")
+    t += ["Osservazioni utilizzabili: %d (di cui raccolte in diretta: %d). Le righe \"storico\" vengono da giorni passati dei "
+          "titoli scelti oggi: la scelta e' fatta col senno di poi e puo' gonfiare i risultati. Conta solo il confronto "
+          "con la riga TUTTE, e solo dove ci sono abbastanza sedute. Con tanti gruppi qualcosa sembra sempre funzionare "
+          "per caso: nessun gruppo diventa una regola senza essere confermato su dati nuovi." % (len(righe), live), ""]
+    if live < 150:
+        t += ["Osservazioni raccolte in diretta: %d. Per una verifica pulita ne servono almeno 150." % live, ""]
+    def g_gap(r):
+        g = float(r["gap_pct"])
+        return "Gap in giu (-1% o meno)" if g <= -1 else ("Gap in su (+1% o piu)" if g >= 1 else "Gap piatto (tra -1% e +1%)")
+    t += ["### Per apertura rispetto alla chiusura precedente", "",
+          tabella_gruppi(righe, g_gap, ["Gap in giu (-1% o meno)", "Gap piatto (tra -1% e +1%)", "Gap in su (+1% o piu)"])]
+    per_titolo = collections.defaultdict(list)
+    for r in righe:
+        per_titolo[r["titolo"]].append(float(r["pm_volume"]))
+    med = {s: statistics.median(v) for s, v in per_titolo.items() if len(v) >= 10}
+    def g_vol(r):
+        m = med.get(r["titolo"])
+        if not m:
+            return None
+        x = float(r["pm_volume"]) / m
+        return "Volume pre-apertura basso (sotto 0,7 volte il suo normale)" if x < 0.7 else (
+            "Volume pre-apertura alto (sopra 1,5 volte il suo normale)" if x > 1.5 else "Volume pre-apertura normale")
+    t += ["### Per volume prima dell'apertura (rispetto al normale dello stesso titolo)", "",
+          tabella_gruppi(righe, g_vol, ["Volume pre-apertura basso (sotto 0,7 volte il suo normale)",
+                                        "Volume pre-apertura normale",
+                                        "Volume pre-apertura alto (sopra 1,5 volte il suo normale)"])]
+    return "\n".join(t)
 
 
 # ---------------------------------------------------------------- lista per domani
@@ -649,20 +812,31 @@ def cmd_sera(a):
             continue
         log("== seduta %s ==" % d)
         ris = elabora_giorno(E, cfg, d, Fonte(E, a.grafici_offline), log)
-        salva_diario(ris)
-        tutte = leggi_csv(os.path.join(DATI, "diario", "operazioni.csv"))
-        scrivi_testo(os.path.join(DATI, "rapporti", "giornalieri", d.isoformat() + ".md"),
-                     rapporto_giornaliero(ris, cfg, tutte))
-        log("   %s: %d segnali, %d operazioni, %d scartate" % (
-            ris["stato"], ris["scattati"], len(ris["operazioni"]), len(ris["scartate"])))
         stato["ultimo_elaborato"] = d.isoformat()
         fatto = d
+        nd = None
         try:
             nd, esito = costruisci_lista(E, cfg, d, adesso, a.scan_offline, a.forza)
             log("   lista per %s: %s" % (nd, esito))
         except Exception as e:
             log("   ATTENZIONE lista per il giorno dopo non preparata: %s" % prima_riga(str(e)))
             codice = 2
+        # raccolta pre-apertura: non deve mai far fallire il ciclo
+        try:
+            oggi = list((leggi_json(os.path.join(DATI, "liste", d.isoformat() + ".json")) or {}).get("simboli", []))
+            domani = list((leggi_json(os.path.join(DATI, "liste", nd.isoformat() + ".json")) or {}).get("simboli", [])) if nd else []
+            ris["premarket"] = raccogli_premarket(E, oggi + [x for x in domani if x not in oggi], set(oggi),
+                                                  Fonte(E, a.grafici_offline, a.prepost_offline), d)
+            log("   pre-apertura: " + riga_premarket(ris["premarket"]))
+        except Exception as e:
+            ris["premarket"] = {"errore": prima_riga(str(e))}
+            log("   ATTENZIONE pre-apertura: %s" % prima_riga(str(e)))
+        salva_diario(ris)
+        tutte = leggi_csv(os.path.join(DATI, "diario", "operazioni.csv"))
+        scrivi_testo(os.path.join(DATI, "rapporti", "giornalieri", d.isoformat() + ".md"),
+                     rapporto_giornaliero(ris, cfg, tutte))
+        log("   %s: %d segnali, %d operazioni, %d scartate" % (
+            ris["stato"], ris["scattati"], len(ris["operazioni"]), len(ris["scartate"])))
         if prossimo_giorno(E, d).isocalendar()[:2] != d.isocalendar()[:2]:
             testo, sett = rapporto_settimanale(d, cfg)
             scrivi_testo(os.path.join(DATI, "rapporti", "settimanali", sett + ".md"), testo)
@@ -690,6 +864,19 @@ def cmd_stato(a):
     return 0
 
 
+def cmd_premarket(a):
+    E = carica_entry()
+    stato = leggi_json(os.path.join(DATI, "stato.json"), {}) or {}
+    ds = a.data or stato.get("ultimo_elaborato")
+    if not ds:
+        raise RuntimeError("nessun giorno elaborato: indica --data")
+    d = datetime.date.fromisoformat(ds)
+    oggi = list((leggi_json(os.path.join(DATI, "liste", ds + ".json")) or {}).get("simboli", []))
+    pm = raccogli_premarket(E, oggi, set(oggi), Fonte(E, None, a.prepost_offline), d)
+    print(riga_premarket(pm))
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="TradeNode - ciclo serale in paper trading")
     ap.add_argument("--config", default=os.path.join(ROOT, "config", "config.json"))
@@ -700,15 +887,20 @@ def main(argv=None):
     p.add_argument("--ora", help="finge che sia quest'ora UTC (prove), es. 2026-10-16T22:30:00Z")
     p.add_argument("--grafici-offline", metavar="CARTELLA", help="grafici salvati invece di Yahoo (prove)")
     p.add_argument("--scan-offline", metavar="FILE", help="dati salvati per la scansione (prove)")
+    p.add_argument("--prepost-offline", metavar="CARTELLA", help="grafici con pre-apertura salvati (prove)")
     p = sub.add_parser("settimana", help="rapporto settimanale")
     p.add_argument("--data", help="un giorno della settimana voluta")
     sub.add_parser("stato", help="statistiche cumulative")
+    p = sub.add_parser("premarket", help="raccoglie le osservazioni pre-apertura per le liste di un giorno")
+    p.add_argument("--data", help="giorno di cui prendere la lista, AAAA-MM-GG (default: ultimo elaborato)")
+    p.add_argument("--prepost-offline", metavar="CARTELLA", help="grafici con pre-apertura salvati (prove)")
     a = ap.parse_args(argv)
     if not a.cmd:
         ap.print_help()
         return 1
     try:
-        return {"sera": cmd_sera, "settimana": cmd_settimana, "stato": cmd_stato}[a.cmd](a)
+        return {"sera": cmd_sera, "settimana": cmd_settimana, "stato": cmd_stato,
+                "premarket": cmd_premarket}[a.cmd](a)
     except RuntimeError as e:
         print("ERRORE: %s" % e, file=sys.stderr)
         return 1
